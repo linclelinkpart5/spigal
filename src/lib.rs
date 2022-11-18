@@ -27,9 +27,9 @@ impl<'b, E: Copy + PartialEq> RingBuffer<'b, E> {
         self.head = 0;
     }
 
-    /// Returns the maximum number of elements this buffer can contain.
+    /// Returns the length of this buffer.
     #[inline]
-    pub fn capacity(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.buffer.len()
     }
 
@@ -45,7 +45,7 @@ impl<'b, E: Copy + PartialEq> RingBuffer<'b, E> {
     /// indicating if the new pushed element would cause the head index to wrap
     /// around to the start of the buffer.
     pub fn push_flagged(&mut self, elem: E) -> (E, bool) {
-        if self.capacity() == 0 {
+        if self.len() == 0 {
             // Buffer has zero capacity, just re-return the passed-in element.
             return (elem, true);
         }
@@ -53,7 +53,7 @@ impl<'b, E: Copy + PartialEq> RingBuffer<'b, E> {
         // Calculate the next head position after this push.
         let mut was_reset = false;
         let mut next_head = self.head + 1;
-        if next_head >= self.capacity() {
+        if next_head >= self.len() {
             next_head = 0;
             was_reset = true;
         }
@@ -68,10 +68,10 @@ impl<'b, E: Copy + PartialEq> RingBuffer<'b, E> {
     /// Helper method to wrap (or not) indices.
     #[inline]
     fn lookup(&self, index: usize, wrap: bool) -> Option<usize> {
-        if !wrap && index >= self.capacity() {
+        if !wrap && index >= self.len() {
             None
         } else {
-            let c = self.capacity();
+            let c = self.len();
             if c == 0 {
                 None
             } else {
