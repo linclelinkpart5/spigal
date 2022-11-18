@@ -33,8 +33,18 @@ impl<'b, E: Copy + PartialEq> RingBuffer<'b, E> {
         self.buffer.len()
     }
 
-    /// Helper method to push new elements.
-    pub(crate) fn push_with_flag(&mut self, elem: E) -> (E, bool) {
+    /// Pushes a new element onto the rear of the buffer, and pops off and
+    /// returns the replaced element from the front.
+    pub fn push(&mut self, elem: E) -> E {
+        let (popped, _) = self.push_flagged(elem);
+        popped
+    }
+
+    /// Pushes a new element onto the rear of the buffer, and pops off and
+    /// returns the replaced element from the front, along with a boolean flag
+    /// indicating if the new pushed element would cause the head index to wrap
+    /// around to the start of the buffer.
+    pub fn push_flagged(&mut self, elem: E) -> (E, bool) {
         if self.capacity() == 0 {
             // Buffer has zero capacity, just re-return the passed-in element.
             return (elem, true);
@@ -53,13 +63,6 @@ impl<'b, E: Copy + PartialEq> RingBuffer<'b, E> {
             unsafe { core::mem::replace(self.buffer.get_unchecked_mut(self.head), elem) };
         self.head = next_head;
         (old_elem, was_reset)
-    }
-
-    /// Pushes a new element onto the rear of the buffer, and pops off and
-    /// returns the replaced element from the front.
-    pub fn push(&mut self, elem: E) -> E {
-        let (popped, _) = self.push_with_flag(elem);
-        popped
     }
 
     /// Helper method to wrap (or not) indices.
