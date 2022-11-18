@@ -4,19 +4,12 @@ pub use crate::iter::*;
 
 mod iter;
 
-pub struct RingBuffer<'b, E: Copy + PartialEq> {
+pub struct RingBuffer<'b, E> {
     buffer: &'b mut [E],
     head: usize,
 }
 
-impl<'b, E: Copy + PartialEq> RingBuffer<'b, E> {
-    /// Sets all values of this buffer to a given value, and sets the head
-    /// index to 0.
-    pub fn fill(&mut self, elem: E) {
-        self.buffer.fill(elem);
-        self.head = 0;
-    }
-
+impl<'b, E> RingBuffer<'b, E> {
     /// Sets all values of this buffer using a given closure, and sets the head
     /// index to 0.
     pub fn fill_with<F>(&mut self, func: F)
@@ -165,14 +158,23 @@ impl<'b, E: Copy + PartialEq> RingBuffer<'b, E> {
     }
 }
 
-impl<'b, E: Copy + PartialEq> From<&'b mut [E]> for RingBuffer<'b, E> {
+impl<'b, E: Clone> RingBuffer<'b, E> {
+    /// Sets all values of this buffer to a given value, and sets the head
+    /// index to 0.
+    pub fn fill(&mut self, elem: E) {
+        self.buffer.fill(elem);
+        self.head = 0;
+    }
+}
+
+impl<'b, E> From<&'b mut [E]> for RingBuffer<'b, E> {
     /// Constructs a new ring buffer from a given inner buffer.
     fn from(buffer: &'b mut [E]) -> Self {
         Self::from_offset(buffer, 0)
     }
 }
 
-impl<'b, E: Copy + PartialEq> Index<usize> for RingBuffer<'b, E> {
+impl<'b, E> Index<usize> for RingBuffer<'b, E> {
     type Output = E;
 
     #[inline]
@@ -181,7 +183,7 @@ impl<'b, E: Copy + PartialEq> Index<usize> for RingBuffer<'b, E> {
     }
 }
 
-impl<'b, E: Copy + PartialEq> IndexMut<usize> for RingBuffer<'b, E> {
+impl<'b, E> IndexMut<usize> for RingBuffer<'b, E> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_wrapped_mut(index)
