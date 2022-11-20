@@ -189,3 +189,146 @@ impl<'b, E> IndexMut<usize> for RingBuffer<'b, E> {
         self.get_wrapped_mut(index)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(non_snake_case)]
+
+    use super::*;
+
+    use core::ops::RangeInclusive;
+
+    use proptest::prelude::*;
+
+    const MAX_BUF_LEN: usize = 100;
+    const BUF_LEN_RANGE: RangeInclusive<usize> = 0..=MAX_BUF_LEN;
+
+    const MAX_FEED_LEN: usize = 1000;
+    const FEED_LEN_RANGE: RangeInclusive<usize> = 1..=MAX_FEED_LEN;
+
+    fn arb_buf<T: Arbitrary>() -> impl Strategy<Value = Vec<T>> {
+        prop::collection::vec(any::<T>(), BUF_LEN_RANGE)
+    }
+
+    fn arb_feed<T: Arbitrary>() -> impl Strategy<Value = Vec<T>> {
+        prop::collection::vec(any::<T>(), FEED_LEN_RANGE)
+    }
+
+    proptest! {
+        #[test]
+        fn test_fill__basic(elem in any::<i32>(), mut raw_buf in arb_buf()) {
+            let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
+            ring_buf.fill(elem);
+
+            assert!(ring_buf.buffer.iter().all(|e| e == &elem));
+            assert_eq!(ring_buf.head, 0);
+        }
+
+        #[test]
+        fn test_fill_with__basic(mut raw_buf in arb_buf()) {
+            let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
+            let mut i = 1u32;
+            ring_buf.fill_with(|| { let r = i; i = i.rotate_left(1); r });
+
+            let mut i = 1;
+            assert!(ring_buf.buffer.iter().all(|e| { let b = e == &i; i = i.rotate_left(1); b }));
+            assert_eq!(ring_buf.head, 0);
+        }
+
+        #[test]
+        fn test_fill_with__not_clone(len in BUF_LEN_RANGE) {
+            #[derive(Debug)]
+            struct NotClone(u32);
+
+            let mut raw_buf = Vec::with_capacity(len);
+            for _ in 0..len {
+                raw_buf.push(NotClone(0));
+            }
+
+            let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
+            let mut i = 1u32;
+            ring_buf.fill_with(|| {
+                let r = i;
+                i = i.rotate_left(1);
+                NotClone(r)
+            });
+
+            let mut i = 1;
+            assert!(ring_buf.buffer.iter().all(|NotClone(e)| { let b = e == &i; i = i.rotate_left(1); b }));
+            assert_eq!(ring_buf.head, 0);
+        }
+
+        #[test]
+        fn test_len__basic(mut raw_buf in arb_buf::<bool>()) {
+            let expected_len = raw_buf.len();
+            let ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
+
+            assert_eq!(ring_buf.len(), expected_len);
+        }
+
+        #[test]
+        fn test_push__basic(mut raw_buf in arb_buf::<i32>(), start_index in any::<usize>(), feed in arb_feed()) {
+            let offset = start_index.checked_rem(raw_buf.len()).unwrap_or(0);
+
+            let expected = raw_buf[offset..].iter()
+                .copied()
+                .chain(
+                    raw_buf[..offset].iter()
+                    .copied()
+                )
+                .chain(
+                    feed.iter()
+                    .copied()
+                )
+                .take(feed.len())
+                .collect::<Vec<_>>();
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), start_index);
+
+            assert_eq!(ring_buf.head, offset);
+
+            let produced = feed.into_iter().map(|e| {
+                ring_buf.push(e)
+            }).collect::<Vec<_>>();
+
+            assert_eq!(produced, expected);
+        }
+
+        #[test]
+        fn test_push_flagged__basic(mut raw_buf in arb_buf::<i32>(), start_index in any::<usize>(), feed in arb_feed()) {
+            let offset = start_index.checked_rem(raw_buf.len()).unwrap_or(0);
+
+            let mut i = offset;
+            let n = raw_buf.len();
+            let wrap_detector = core::iter::from_fn(|| {
+                i = (i + 1).checked_rem(n).unwrap_or(0);
+
+                Some(i == 0)
+            });
+
+            let expected = raw_buf[offset..].iter()
+                .copied()
+                .chain(
+                    raw_buf[..offset].iter()
+                    .copied()
+                )
+                .chain(
+                    feed.iter()
+                    .copied()
+                )
+                .take(feed.len())
+                .zip(wrap_detector)
+                .collect::<Vec<_>>();
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), start_index);
+
+            assert_eq!(ring_buf.head, offset);
+
+            let produced = feed.into_iter().map(|e| {
+                ring_buf.push_flagged(e)
+            }).collect::<Vec<_>>();
+
+            assert_eq!(produced, expected);
+        }
+    }
+}
