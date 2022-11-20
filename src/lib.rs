@@ -35,7 +35,7 @@ impl<'b, E> RingBuffer<'b, E> {
 
     /// Pushes a new element onto the rear of the buffer, and pops off and
     /// returns the replaced element from the front, along with a boolean flag
-    /// indicating if the new pushed element would cause the head index to wrap
+    /// indicating if the new pushed element caused the head index to wrap
     /// around to the start of the buffer.
     pub fn push_flagged(&mut self, elem: E) -> (E, bool) {
         if self.len() == 0 {
@@ -101,7 +101,7 @@ impl<'b, E> RingBuffer<'b, E> {
     #[inline]
     pub fn get_wrapped_mut(&mut self, index: usize) -> &mut E {
         let wrapped_index = self.lookup(index, true).unwrap();
-        &mut self.buffer.as_mut()[wrapped_index]
+        &mut self.buffer[wrapped_index]
     }
 
     /// Constructs a new ring buffer from a given inner buffer and
