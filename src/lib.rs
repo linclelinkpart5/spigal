@@ -231,6 +231,7 @@ mod tests {
 
     use std::collections::VecDeque;
 
+    use cool_asserts::assert_panics;
     use proptest::prelude::*;
 
     #[repr(usize)]
@@ -477,6 +478,18 @@ mod tests {
             let produced_returns = (0..ring_buf.len() + EXTRA_LOOKAHEAD).map(|i| *ring_buf.get_wrapped(i)).collect::<Vec<_>>();
 
             assert_eq!(produced_returns, expected_returns);
+        }
+
+        #[test]
+        fn test_get_wrapped__empty(index in any::<usize>()) {
+            let mut raw_buf = vec![0i32; 0];
+
+            let ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
+
+            assert_panics!(
+                ring_buf.get_wrapped(index),
+                includes("index out of bounds: the len is 0"),
+            )
         }
     }
 }

@@ -8,4 +8,5 @@ version = "0.1.0"
 [dependencies]
 
 [dev-dependencies]
+cool_asserts = "2"
 proptest = "1"
