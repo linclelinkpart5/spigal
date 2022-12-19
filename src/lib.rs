@@ -246,27 +246,32 @@ mod tests {
     proptest! {
         #[test]
         fn test_fill__basic(elem in any::<i32>(), mut raw_buf in arb_buf()) {
+            let expected_contents = vec![elem; raw_buf.len()];
+
             let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
             ring_buf.fill(elem);
 
-            assert!(ring_buf.buffer.iter().all(|e| e == &elem));
-            assert_eq!(ring_buf.head, 0);
+            let produced_contents = ring_buf.iter().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_contents, expected_contents);
         }
 
         #[test]
         fn test_fill_with__basic(mut raw_buf in arb_buf()) {
+            let mut expected_contents = Vec::with_capacity(raw_buf.len());
+
             let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
             let mut i = 1u32;
-            ring_buf.fill_with(|| { let r = i; i = i.rotate_left(1); r });
+            ring_buf.fill_with(|| { let r = i; i = i.rotate_left(1); expected_contents.push(r); r });
 
-            let mut i = 1;
-            assert!(ring_buf.buffer.iter().all(|e| { let b = e == &i; i = i.rotate_left(1); b }));
-            assert_eq!(ring_buf.head, 0);
+            let produced_contents = ring_buf.iter().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_contents, expected_contents);
         }
 
         #[test]
         fn test_fill_with__not_clone(len in BUF_LEN_RANGE) {
-            #[derive(Debug)]
+            #[derive(Debug, PartialEq)]
             struct NotClone(u32);
 
             let mut raw_buf = Vec::with_capacity(len);
@@ -274,17 +279,20 @@ mod tests {
                 raw_buf.push(NotClone(0));
             }
 
+            let mut expected_contents = Vec::with_capacity(len);
+
             let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
             let mut i = 1u32;
             ring_buf.fill_with(|| {
                 let r = i;
                 i = i.rotate_left(1);
+                expected_contents.push(NotClone(r));
                 NotClone(r)
             });
 
-            let mut i = 1;
-            assert!(ring_buf.buffer.iter().all(|NotClone(e)| { let b = e == &i; i = i.rotate_left(1); b }));
-            assert_eq!(ring_buf.head, 0);
+            let produced_contents = ring_buf.iter().map(|&NotClone(i)| NotClone(i)).collect::<Vec<_>>();
+
+            assert_eq!(produced_contents, expected_contents);
         }
 
         #[test]
@@ -305,10 +313,10 @@ mod tests {
                 Err(c) => c,
                 Ok(()) => orig_raw_buf.len(),
             };
-            let expected_iter = orig_raw_buf.into_iter().skip(to_skip).chain(feed.iter().copied().take(to_skip)).collect::<Vec<_>>();
-            let produced_iter = ring_buf.iter().copied().collect::<Vec<_>>();
+            let expected_contents = orig_raw_buf.into_iter().skip(to_skip).chain(feed.iter().copied().take(to_skip)).collect::<Vec<_>>();
+            let produced_contents = ring_buf.iter().copied().collect::<Vec<_>>();
 
-            assert_eq!(produced_iter, expected_iter);
+            assert_eq!(produced_contents, expected_contents);
         }
 
         #[test]
