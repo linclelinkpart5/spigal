@@ -1,6 +1,9 @@
 [package]
+description = "A simple fixed-length ring buffer implementation, intended to be no-frills and easy to use, especially for embedded applications."
 edition = "2021"
+license = "MIT"
 name = "spigal"
+repository = "https://github.com/linclelinkpart5/spigal"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
