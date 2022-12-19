@@ -225,27 +225,33 @@ mod tests {
 
     use super::*;
 
-    use core::ops::RangeInclusive;
+    use std::collections::VecDeque;
 
     use proptest::prelude::*;
 
-    const MAX_BUF_LEN: usize = 100;
-    const BUF_LEN_RANGE: RangeInclusive<usize> = 0..=MAX_BUF_LEN;
-
-    const MAX_FEED_LEN: usize = 1000;
-    const FEED_LEN_RANGE: RangeInclusive<usize> = 1..=MAX_FEED_LEN;
-
-    fn arb_buf<T: Arbitrary>() -> impl Strategy<Value = Vec<T>> {
-        prop::collection::vec(any::<T>(), BUF_LEN_RANGE)
+    #[repr(usize)]
+    enum Size {
+        M = 100,
+        L = 1000,
     }
 
-    fn arb_feed<T: Arbitrary>() -> impl Strategy<Value = Vec<T>> {
-        prop::collection::vec(any::<T>(), FEED_LEN_RANGE)
+    enum Empty {
+        OK,
+        Non,
+    }
+
+    fn arb_values<T: Arbitrary>(size: Size, empty: Empty) -> impl Strategy<Value = Vec<T>> {
+        let lower_bound = match empty {
+            Empty::OK => 0,
+            Empty::Non => 1,
+        };
+
+        prop::collection::vec(any::<T>(), lower_bound..(size as usize))
     }
 
     proptest! {
         #[test]
-        fn test_fill__basic(elem in any::<i32>(), mut raw_buf in arb_buf()) {
+        fn test_fill__basic(elem in any::<i32>(), mut raw_buf in arb_values(Size::M, Empty::OK)) {
             let expected_contents = vec![elem; raw_buf.len()];
 
             let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
@@ -257,7 +263,7 @@ mod tests {
         }
 
         #[test]
-        fn test_fill_with__basic(mut raw_buf in arb_buf()) {
+        fn test_fill_with__basic(mut raw_buf in arb_values(Size::M, Empty::OK)) {
             let mut expected_contents = Vec::with_capacity(raw_buf.len());
 
             let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
@@ -270,7 +276,7 @@ mod tests {
         }
 
         #[test]
-        fn test_fill_with__not_clone(len in BUF_LEN_RANGE) {
+        fn test_fill_with__not_clone(len in 0..=(Size::M as usize)) {
             #[derive(Debug, PartialEq)]
             struct NotClone(u32);
 
@@ -296,7 +302,7 @@ mod tests {
         }
 
         #[test]
-        fn test_fill_iter__basic(mut raw_buf in arb_buf::<i32>(), feed in arb_buf()) {
+        fn test_fill_iter__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), feed in arb_values::<i32>(Size::L, Empty::OK)) {
             let expected_result = match feed.len().checked_sub(raw_buf.len()) {
                 None => Err(feed.len()),
                 Some(..) => Ok(()),
@@ -320,7 +326,7 @@ mod tests {
         }
 
         #[test]
-        fn test_len__basic(mut raw_buf in arb_buf::<bool>()) {
+        fn test_len__basic(mut raw_buf in arb_values::<bool>(Size::L, Empty::OK)) {
             let expected_len = raw_buf.len();
             let ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
 
@@ -328,15 +334,11 @@ mod tests {
         }
 
         #[test]
-        fn test_push__basic(mut raw_buf in arb_buf::<i32>(), start_index in any::<usize>(), feed in arb_feed()) {
-            let offset = start_index.checked_rem(raw_buf.len()).unwrap_or(0);
+        fn test_push__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), feed in arb_values(Size::L, Empty::Non)) {
+            let mut reference_state = VecDeque::from(raw_buf.clone());
 
-            let expected = raw_buf[offset..].iter()
+            let expected_returns = raw_buf.iter()
                 .copied()
-                .chain(
-                    raw_buf[..offset].iter()
-                    .copied()
-                )
                 .chain(
                     feed.iter()
                     .copied()
@@ -344,22 +346,32 @@ mod tests {
                 .take(feed.len())
                 .collect::<Vec<_>>();
 
-            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), start_index);
+            let mut produced_returns = Vec::with_capacity(feed.len());
 
-            assert_eq!(ring_buf.head, offset);
+            let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
 
-            let produced = feed.into_iter().map(|e| {
-                ring_buf.push(e)
-            }).collect::<Vec<_>>();
+            for elem in feed {
+                let produced_return = ring_buf.push(elem);
+                produced_returns.push(produced_return);
 
-            assert_eq!(produced, expected);
+                // Update and assert reference state.
+                reference_state.push_back(elem);
+                reference_state.pop_front().unwrap();
+
+                let expected_state = reference_state.iter().copied().collect::<Vec<_>>();
+                let produced_state = ring_buf.iter().copied().collect::<Vec<_>>();
+
+                assert_eq!(produced_state, expected_state);
+            }
+
+            assert_eq!(produced_returns, expected_returns);
         }
 
         #[test]
-        fn test_push_flagged__basic(mut raw_buf in arb_buf::<i32>(), start_index in any::<usize>(), feed in arb_feed()) {
-            let offset = start_index.checked_rem(raw_buf.len()).unwrap_or(0);
+        fn test_push_flagged__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), feed in arb_values(Size::L, Empty::Non)) {
+            let mut reference_state = VecDeque::from(raw_buf.clone());
 
-            let mut i = offset;
+            let mut i = 0usize;
             let n = raw_buf.len();
             let wrap_detector = core::iter::from_fn(|| {
                 i = (i + 1).checked_rem(n).unwrap_or(0);
@@ -367,12 +379,8 @@ mod tests {
                 Some(i == 0)
             });
 
-            let expected = raw_buf[offset..].iter()
+            let expected_returns = raw_buf.iter()
                 .copied()
-                .chain(
-                    raw_buf[..offset].iter()
-                    .copied()
-                )
                 .chain(
                     feed.iter()
                     .copied()
@@ -381,15 +389,25 @@ mod tests {
                 .zip(wrap_detector)
                 .collect::<Vec<_>>();
 
-            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), start_index);
+            let mut produced_returns = Vec::with_capacity(feed.len());
 
-            assert_eq!(ring_buf.head, offset);
+            let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
 
-            let produced = feed.into_iter().map(|e| {
-                ring_buf.push_flagged(e)
-            }).collect::<Vec<_>>();
+            for elem in feed {
+                let produced_return = ring_buf.push_flagged(elem);
+                produced_returns.push(produced_return);
 
-            assert_eq!(produced, expected);
+                // Update and assert reference state.
+                reference_state.push_back(elem);
+                reference_state.pop_front().unwrap();
+
+                let expected_state = reference_state.iter().copied().collect::<Vec<_>>();
+                let produced_state = ring_buf.iter().copied().collect::<Vec<_>>();
+
+                assert_eq!(produced_state, expected_state);
+            }
+
+            assert_eq!(produced_returns, expected_returns);
         }
     }
 }
