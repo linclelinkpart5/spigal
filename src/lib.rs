@@ -122,14 +122,18 @@ impl<'b, E> RingBuffer<'b, E> {
     /// of 0.
     #[inline]
     pub fn get_wrapped(&self, index: usize) -> &E {
-        let wrapped_index = self.lookup(index, true).unwrap();
+        let wrapped_index = self
+            .lookup(index, true)
+            .expect("index out of bounds: the len is 0");
         &self.buffer[wrapped_index]
     }
 
     /// Similar to [`Self::get_wrapped`], but returns a mutable reference instead.
     #[inline]
     pub fn get_wrapped_mut(&mut self, index: usize) -> &mut E {
-        let wrapped_index = self.lookup(index, true).unwrap();
+        let wrapped_index = self
+            .lookup(index, true)
+            .expect("index out of bounds: the len is 0");
         &mut self.buffer[wrapped_index]
     }
 
