@@ -4,6 +4,8 @@ pub use crate::iter::*;
 
 mod iter;
 
+const NORMALIZE: bool = true;
+
 pub struct RingBuffer<'b, E> {
     buffer: &'b mut [E],
     head: usize,
@@ -18,6 +20,33 @@ impl<'b, E> RingBuffer<'b, E> {
     {
         self.buffer.fill_with(func);
         self.head = 0;
+    }
+
+    /// Sets all values of this buffer by feeding in an iterator. Returns `Ok`
+    /// if there were enough elements in the iterator to exactly fill the
+    /// buffer once, `Err(c)` otherwise, where `c` is the number of elements
+    /// that were read and pushed into the buffer. Note that `c` will always be
+    /// less than the length of the buffer.
+    pub fn fill_iter<I>(&mut self, iter: I) -> Result<(), usize>
+    where
+        I: IntoIterator<Item = E>,
+    {
+        if NORMALIZE {
+            self.buffer.rotate_left(self.head);
+            self.head = 0;
+        }
+
+        let mut iter = iter.into_iter();
+
+        for c in 0..self.len() {
+            if let Some(elem) = iter.next() {
+                self.push(elem);
+            } else {
+                return Err(c);
+            }
+        }
+
+        Ok(())
     }
 
     /// Returns the length of this buffer.
@@ -233,6 +262,30 @@ mod tests {
             let mut i = 1;
             assert!(ring_buf.buffer.iter().all(|e| { let b = e == &i; i = i.rotate_left(1); b }));
             assert_eq!(ring_buf.head, 0);
+        }
+
+        #[test]
+        fn test_fill_iter__basic(mut raw_buf in arb_buf::<i32>(), feed in arb_buf()) {
+            let expected_result = match feed.len().checked_sub(raw_buf.len()) {
+                None => Err(feed.len()),
+                Some(..) => Ok(()),
+            };
+
+            let orig_raw_buf = raw_buf.clone();
+
+            let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
+            let produced_result = ring_buf.fill_iter(feed.iter().copied());
+
+            assert_eq!(produced_result, expected_result);
+
+            let to_skip = match expected_result {
+                Err(c) => c,
+                Ok(()) => orig_raw_buf.len(),
+            };
+            let expected_iter = orig_raw_buf.into_iter().skip(to_skip).chain(feed.iter().copied().take(to_skip)).collect::<Vec<_>>();
+            let produced_iter = ring_buf.iter().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_iter, expected_iter);
         }
 
         #[test]
