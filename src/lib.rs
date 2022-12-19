@@ -431,5 +431,34 @@ mod tests {
 
             assert_eq!(produced_returns, expected_returns);
         }
+
+        #[test]
+        fn test_get_mut__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), offset in any::<usize>()) {
+            const EXTRA_LOOKAHEAD: usize = 16;
+
+            fn mutator(i: &mut i32) -> i32 {
+                let r = *i;
+                *i = !*i;
+                r
+            }
+
+            let offset = offset.checked_rem(raw_buf.len()).unwrap_or(0);
+
+            let mut reference_state = raw_buf.clone();
+            reference_state.rotate_left(offset);
+
+            let expected_returns = (0..raw_buf.len() + EXTRA_LOOKAHEAD).map(|i| reference_state.get_mut(i).map(mutator)).collect::<Vec<_>>();
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            let produced_returns = (0..ring_buf.len() + EXTRA_LOOKAHEAD).map(|i| ring_buf.get_mut(i).map(mutator)).collect::<Vec<_>>();
+
+            assert_eq!(produced_returns, expected_returns);
+
+            let expected_state = reference_state;
+            let produced_state = ring_buf.iter().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_state, expected_state);
+        }
     }
 }
