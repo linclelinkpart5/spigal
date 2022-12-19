@@ -418,22 +418,16 @@ mod tests {
         fn test_get__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), offset in any::<usize>()) {
             const EXTRA_LOOKAHEAD: usize = 16;
 
-            let len = raw_buf.len();
+            let offset = offset.checked_rem(raw_buf.len()).unwrap_or(0);
 
-            let offset = offset.checked_rem(len).unwrap_or(0);
+            let mut reference_state = raw_buf.clone();
+            reference_state.rotate_left(offset);
 
-            let expected_returns = raw_buf[offset..].iter().map(|&i| Some(i))
-                .chain(
-                    raw_buf[..offset].iter().map(|&i| Some(i))
-                )
-                .chain(
-                    (0..EXTRA_LOOKAHEAD).map(|_| None)
-                )
-                .collect::<Vec<_>>();
+            let expected_returns = (0..raw_buf.len() + EXTRA_LOOKAHEAD).map(|i| reference_state.get(i).copied()).collect::<Vec<_>>();
 
             let ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
 
-            let produced_returns = (0..len + EXTRA_LOOKAHEAD).map(|i| ring_buf.get(i).copied()).collect::<Vec<_>>();
+            let produced_returns = (0..ring_buf.len() + EXTRA_LOOKAHEAD).map(|i| ring_buf.get(i).copied()).collect::<Vec<_>>();
 
             assert_eq!(produced_returns, expected_returns);
         }
