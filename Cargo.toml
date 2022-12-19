@@ -1,6 +1,8 @@
 [package]
+categories = ["no-std", "data-structures"]
 description = "A simple fixed-length ring buffer implementation, intended to be no-frills and easy to use, especially for embedded applications."
 edition = "2021"
+keywords = ["ring-buffer", "ring-queue", "circular-buffer", "circular-queue"]
 license = "MIT"
 name = "spigal"
 repository = "https://github.com/linclelinkpart5/spigal"
