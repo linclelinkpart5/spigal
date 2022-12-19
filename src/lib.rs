@@ -413,5 +413,29 @@ mod tests {
 
             assert_eq!(produced_returns, expected_returns);
         }
+
+        #[test]
+        fn test_get__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), offset in any::<usize>()) {
+            const EXTRA_LOOKAHEAD: usize = 16;
+
+            let len = raw_buf.len();
+
+            let offset = offset.checked_rem(len).unwrap_or(0);
+
+            let expected_returns = raw_buf[offset..].iter().map(|&i| Some(i))
+                .chain(
+                    raw_buf[..offset].iter().map(|&i| Some(i))
+                )
+                .chain(
+                    (0..EXTRA_LOOKAHEAD).map(|_| None)
+                )
+                .collect::<Vec<_>>();
+
+            let ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            let produced_returns = (0..len + EXTRA_LOOKAHEAD).map(|i| ring_buf.get(i).copied()).collect::<Vec<_>>();
+
+            assert_eq!(produced_returns, expected_returns);
+        }
     }
 }
