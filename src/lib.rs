@@ -460,5 +460,23 @@ mod tests {
 
             assert_eq!(produced_state, expected_state);
         }
+
+        #[test]
+        fn test_get_wrapped__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::Non), offset in any::<usize>()) {
+            const EXTRA_LOOKAHEAD: usize = 16;
+
+            let offset = offset.checked_rem(raw_buf.len()).unwrap_or(0);
+
+            let mut reference_state = raw_buf.clone();
+            reference_state.rotate_left(offset);
+
+            let expected_returns = (0..raw_buf.len() + EXTRA_LOOKAHEAD).map(|i| reference_state[i % raw_buf.len()]).collect::<Vec<_>>();
+
+            let ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            let produced_returns = (0..ring_buf.len() + EXTRA_LOOKAHEAD).map(|i| *ring_buf.get_wrapped(i)).collect::<Vec<_>>();
+
+            assert_eq!(produced_returns, expected_returns);
+        }
     }
 }
