@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), no_std)]
+
 use core::ops::{Index, IndexMut};
 
 pub use crate::iter::*;
