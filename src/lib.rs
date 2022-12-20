@@ -6,6 +6,8 @@ pub use crate::iter::*;
 
 mod iter;
 
+const EMPTY_BUFFER_ERR: &str = "buffer should have a len greater than 0";
+
 pub struct RingBuffer<'b, E> {
     buffer: &'b mut [E],
     head: usize,
@@ -120,18 +122,14 @@ impl<'b, E> RingBuffer<'b, E> {
     /// of 0.
     #[inline]
     pub fn get_wrapped(&self, index: usize) -> &E {
-        let wrapped_index = self
-            .lookup(index, true)
-            .expect("index out of bounds: the len is 0");
+        let wrapped_index = self.lookup(index, true).expect(EMPTY_BUFFER_ERR);
         &self.buffer[wrapped_index]
     }
 
     /// Similar to [`Self::get_wrapped`], but returns a mutable reference instead.
     #[inline]
     pub fn get_wrapped_mut(&mut self, index: usize) -> &mut E {
-        let wrapped_index = self
-            .lookup(index, true)
-            .expect("index out of bounds: the len is 0");
+        let wrapped_index = self.lookup(index, true).expect(EMPTY_BUFFER_ERR);
         &mut self.buffer[wrapped_index]
     }
 
@@ -139,17 +137,13 @@ impl<'b, E> RingBuffer<'b, E> {
     /// Panics if the buffer has a length of 0.
     #[inline]
     pub fn peek(&self) -> &E {
-        self.buffer
-            .get(self.head)
-            .expect("index out of bounds: the len is 0")
+        self.buffer.get(self.head).expect(EMPTY_BUFFER_ERR)
     }
 
     /// Similar to [`Self::peek`], but returns a mutable reference instead.
     #[inline]
     pub fn peek_mut(&mut self) -> &mut E {
-        self.buffer
-            .get_mut(self.head)
-            .expect("index out of bounds: the len is 0")
+        self.buffer.get_mut(self.head).expect(EMPTY_BUFFER_ERR)
     }
 
     /// Constructs a new ring buffer from a given inner buffer and
@@ -503,7 +497,7 @@ mod tests {
 
             assert_panics!(
                 ring_buf.get_wrapped(index),
-                includes("index out of bounds: the len is 0"),
+                includes(EMPTY_BUFFER_ERR),
             )
         }
 
