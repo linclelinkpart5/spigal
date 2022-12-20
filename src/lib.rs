@@ -6,8 +6,6 @@ pub use crate::iter::*;
 
 mod iter;
 
-const NORMALIZE: bool = true;
-
 pub struct RingBuffer<'b, E> {
     buffer: &'b mut [E],
     head: usize,
@@ -33,11 +31,6 @@ impl<'b, E> RingBuffer<'b, E> {
     where
         I: IntoIterator<Item = E>,
     {
-        if NORMALIZE {
-            self.buffer.rotate_left(self.head);
-            self.head = 0;
-        }
-
         let mut iter = iter.into_iter();
 
         for c in 0..self.len() {
