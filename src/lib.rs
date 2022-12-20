@@ -12,8 +12,7 @@ pub struct RingBuffer<'b, E> {
 }
 
 impl<'b, E> RingBuffer<'b, E> {
-    /// Sets all values of this buffer using a given closure, and sets the head
-    /// index to 0.
+    /// Sets all values of this buffer using a given closure.
     pub fn fill_with<F>(&mut self, func: F)
     where
         F: FnMut() -> E,
