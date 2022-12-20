@@ -116,7 +116,7 @@ impl<'b, E> RingBuffer<'b, E> {
     }
 
     /// Returns a reference to the element at the given index, wrapping around
-    /// the length of the buffer if needed. Panics if the buffer has a capacity
+    /// the length of the buffer if needed. Panics if the buffer has a length
     /// of 0.
     #[inline]
     pub fn get_wrapped(&self, index: usize) -> &E {
@@ -133,6 +133,23 @@ impl<'b, E> RingBuffer<'b, E> {
             .lookup(index, true)
             .expect("index out of bounds: the len is 0");
         &mut self.buffer[wrapped_index]
+    }
+
+    /// Returns a reference to the element at the head of the ring buffer.
+    /// Panics if the buffer has a length of 0.
+    #[inline]
+    pub fn peek(&self) -> &E {
+        self.buffer
+            .get(self.head)
+            .expect("index out of bounds: the len is 0")
+    }
+
+    /// Similar to [`Self::peek`], but returns a mutable reference instead.
+    #[inline]
+    pub fn peek_mut(&mut self) -> &mut E {
+        self.buffer
+            .get_mut(self.head)
+            .expect("index out of bounds: the len is 0")
     }
 
     /// Constructs a new ring buffer from a given inner buffer and
