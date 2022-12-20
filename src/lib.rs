@@ -92,15 +92,19 @@ impl<'b, E> RingBuffer<'b, E> {
     /// Helper method to wrap (or not) indices.
     #[inline]
     fn lookup(&self, index: usize, wrap: bool) -> Option<usize> {
-        if !wrap && index >= self.len() {
+        let len = self.len();
+        if len == 0 || (!wrap && index >= len) {
             None
         } else {
-            let c = self.len();
-            if c == 0 {
-                None
-            } else {
-                Some((self.head + (index % c)) % c)
-            }
+            // NOTE: This is a little convoluted, but avoids any overflow (i.e.
+            //       if `a + b` could overflow in `(a + b) % n`).
+            let a = self.head;
+            debug_assert!(a < len);
+            let b = index % len;
+
+            let z = len - a;
+
+            Some(if b >= z { b - z } else { a + b })
         }
     }
 
