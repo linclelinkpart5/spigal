@@ -85,9 +85,9 @@ impl<'b, E> RingBuffer<'b, E> {
 
     /// Helper method to wrap (or not) indices.
     #[inline]
-    fn lookup(&self, index: usize, wrap: bool) -> Option<usize> {
+    fn lookup(&self, index: usize, allow_wrap: bool, forwards: bool) -> Option<usize> {
         let len = self.len();
-        if len == 0 || (!wrap && index >= len) {
+        if len == 0 || (!allow_wrap && index >= len) {
             None
         } else {
             // NOTE: This is a little convoluted, but avoids any overflow (i.e.
@@ -98,7 +98,14 @@ impl<'b, E> RingBuffer<'b, E> {
 
             let z = len - a;
 
-            Some(if b >= z { b - z } else { a + b })
+            let d = if b >= z { b - z } else { a + b };
+            debug_assert!(d < len);
+
+            if forwards {
+                Some(d)
+            } else {
+                Some(len - d)
+            }
         }
     }
 
@@ -106,14 +113,14 @@ impl<'b, E> RingBuffer<'b, E> {
     /// out of bounds.
     #[inline]
     pub fn get(&self, index: usize) -> Option<&E> {
-        let wrapped_index = self.lookup(index, false)?;
+        let wrapped_index = self.lookup(index, false, true)?;
         self.buffer.get(wrapped_index)
     }
 
     /// Similar to [`Self::get`], but returns a mutable reference instead.
     #[inline]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut E> {
-        let wrapped_index = self.lookup(index, false)?;
+        let wrapped_index = self.lookup(index, false, true)?;
         self.buffer.get_mut(wrapped_index)
     }
 
@@ -122,14 +129,14 @@ impl<'b, E> RingBuffer<'b, E> {
     /// of 0.
     #[inline]
     pub fn get_wrapped(&self, index: usize) -> &E {
-        let wrapped_index = self.lookup(index, true).expect(EMPTY_BUFFER_ERR);
+        let wrapped_index = self.lookup(index, true, true).expect(EMPTY_BUFFER_ERR);
         &self.buffer[wrapped_index]
     }
 
     /// Similar to [`Self::get_wrapped`], but returns a mutable reference instead.
     #[inline]
     pub fn get_wrapped_mut(&mut self, index: usize) -> &mut E {
-        let wrapped_index = self.lookup(index, true).expect(EMPTY_BUFFER_ERR);
+        let wrapped_index = self.lookup(index, true, true).expect(EMPTY_BUFFER_ERR);
         &mut self.buffer[wrapped_index]
     }
 
