@@ -92,6 +92,27 @@ impl<'b, E> RingBuffer<'b, E> {
         self.buffer.len()
     }
 
+    /// Helper method to perform cyclic rotations. Since this is a ring buffer,
+    /// these rotation operations just involve shifting the head index, and are
+    /// very efficient.
+    fn rotate(&mut self, n: usize, forward: bool) {
+        lookup(self.head, self.len(), n, forward, true).map(|i| self.head = i);
+    }
+
+    /// Rotates the ring buffer `n` elements to the left. This has the same
+    /// effect as popping the front element and pushing it onto the back of the
+    /// ring buffer, repeated `n` times.
+    pub fn rotate_left(&mut self, n: usize) {
+        self.rotate(n, true)
+    }
+
+    /// Rotates the ring buffer `n` elements to the right. This has the same
+    /// effect as popping the back element and pushing it onto the front of the
+    /// ring buffer, repeated `n` times.
+    pub fn rotate_right(&mut self, n: usize) {
+        self.rotate(n, false)
+    }
+
     /// Pushes a new element onto the rear of the buffer, and pops off and
     /// returns the replaced element from the front.
     pub fn push(&mut self, elem: E) -> E {
@@ -410,6 +431,44 @@ mod tests {
             let ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
 
             assert_eq!(ring_buf.len(), expected_len);
+        }
+
+        #[test]
+        fn test_rotate_left__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), offset in any::<usize>(), n in any::<usize>()) {
+            let mut expected_state = raw_buf.clone();
+
+            // Match the state to the newly-created ring buffer.
+            expected_state.rotate_left(offset.checked_rem(raw_buf.len()).unwrap_or(0));
+
+            // Rotate state to the left to match the end ring buffer state.
+            expected_state.rotate_left(n.checked_rem(raw_buf.len()).unwrap_or(0));
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            ring_buf.rotate_left(n);
+
+            let produced_state = ring_buf.iter().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_state, expected_state);
+        }
+
+        #[test]
+        fn test_rotate_right__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), offset in any::<usize>(), n in any::<usize>()) {
+            let mut expected_state = raw_buf.clone();
+
+            // Match the state to the newly-created ring buffer.
+            expected_state.rotate_left(offset.checked_rem(raw_buf.len()).unwrap_or(0));
+
+            // Rotate state to the right to match the end ring buffer state.
+            expected_state.rotate_right(n.checked_rem(raw_buf.len()).unwrap_or(0));
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            ring_buf.rotate_right(n);
+
+            let produced_state = ring_buf.iter().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_state, expected_state);
         }
 
         #[test]
