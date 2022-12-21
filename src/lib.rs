@@ -77,7 +77,7 @@ impl<'b, E> RingBuffer<'b, E> {
 
         for c in 0..self.len() {
             if let Some(elem) = iter.next() {
-                self.push(elem);
+                self.push_back(elem);
             } else {
                 return Err(c);
             }
@@ -113,36 +113,39 @@ impl<'b, E> RingBuffer<'b, E> {
         self.rotate(n, false)
     }
 
-    /// Pushes a new element onto the rear of the buffer, and pops off and
-    /// returns the replaced element from the front.
-    pub fn push(&mut self, elem: E) -> E {
-        let (popped, _) = self.push_flagged(elem);
-        popped
-    }
-
-    /// Pushes a new element onto the rear of the buffer, and pops off and
-    /// returns the replaced element from the front, along with a boolean flag
-    /// indicating if the new pushed element caused the head index to wrap
-    /// around to the start of the buffer.
-    pub fn push_flagged(&mut self, elem: E) -> (E, bool) {
+    /// Helper method to assist with push-popping from either end of the ring
+    /// buffer.
+    fn push_pop(&mut self, elem: E, to_front: bool) -> E {
         if self.len() == 0 {
             // Buffer has zero capacity, just re-return the passed-in element.
-            return (elem, true);
+            return elem;
         }
 
-        // Calculate the next head position after this push.
-        let mut was_reset = false;
-        let mut next_head = self.head + 1;
-        if next_head >= self.len() {
-            next_head = 0;
-            was_reset = true;
+        if to_front {
+            self.rotate_right(1);
         }
 
-        // SAFETY: Bounds checking can be skipped since the length is constant.
+        debug_assert!(self.head < self.buffer.len());
         let old_elem =
             unsafe { core::mem::replace(self.buffer.get_unchecked_mut(self.head), elem) };
-        self.head = next_head;
-        (old_elem, was_reset)
+
+        if !to_front {
+            self.rotate_left(1);
+        }
+
+        old_elem
+    }
+
+    /// Pushes a new element onto the back of the buffer, and pops off and
+    /// returns the replaced element from the front.
+    pub fn push_back(&mut self, elem: E) -> E {
+        self.push_pop(elem, false)
+    }
+
+    /// Pushes a new element onto the front of the buffer, and pops off and
+    /// returns the replaced element from the back.
+    pub fn push_front(&mut self, elem: E) -> E {
+        self.push_pop(elem, true)
     }
 
     /// Returns a reference to the element at the given index, or [`None`] if
@@ -472,7 +475,7 @@ mod tests {
         }
 
         #[test]
-        fn test_push__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), feed in arb_values(Size::L, Empty::Non)) {
+        fn test_push_back__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), feed in arb_values(Size::L, Empty::Non)) {
             let mut reference_state = VecDeque::from(raw_buf.clone());
 
             let expected_returns = raw_buf.iter()
@@ -489,7 +492,7 @@ mod tests {
             let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
 
             for elem in feed {
-                let produced_return = ring_buf.push(elem);
+                let produced_return = ring_buf.push_back(elem);
                 produced_returns.push(produced_return);
 
                 // Update and assert reference state.
@@ -506,25 +509,17 @@ mod tests {
         }
 
         #[test]
-        fn test_push_flagged__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), feed in arb_values(Size::L, Empty::Non)) {
+        fn test_push_front__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::OK), feed in arb_values(Size::L, Empty::Non)) {
             let mut reference_state = VecDeque::from(raw_buf.clone());
 
-            let mut i = 0usize;
-            let n = raw_buf.len();
-            let wrap_detector = core::iter::from_fn(|| {
-                i = (i + 1).checked_rem(n).unwrap_or(0);
-
-                Some(i == 0)
-            });
-
             let expected_returns = raw_buf.iter()
+                .rev()
                 .copied()
                 .chain(
                     feed.iter()
                     .copied()
                 )
                 .take(feed.len())
-                .zip(wrap_detector)
                 .collect::<Vec<_>>();
 
             let mut produced_returns = Vec::with_capacity(feed.len());
@@ -532,12 +527,12 @@ mod tests {
             let mut ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
 
             for elem in feed {
-                let produced_return = ring_buf.push_flagged(elem);
+                let produced_return = ring_buf.push_front(elem);
                 produced_returns.push(produced_return);
 
                 // Update and assert reference state.
-                reference_state.push_back(elem);
-                reference_state.pop_front().unwrap();
+                reference_state.push_front(elem);
+                reference_state.pop_back().unwrap();
 
                 let expected_state = reference_state.iter().copied().collect::<Vec<_>>();
                 let produced_state = ring_buf.iter().copied().collect::<Vec<_>>();
