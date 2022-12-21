@@ -228,11 +228,12 @@ impl<'b, E> RingBuffer<'b, E> {
         }
     }
 
-    /// Decomposes this ring buffer into a head index and inner buffer.
+    /// Decomposes this ring buffer into the inner buffer and the current head
+    /// index.
     #[inline]
-    pub fn into_raw_parts(self) -> (usize, &'b mut [E]) {
+    pub fn into_raw_parts(self) -> (&'b mut [E], usize) {
         let Self { head, buffer } = self;
-        (head, buffer)
+        (buffer, head)
     }
 
     fn as_slices(&self) -> (&[E], &[E]) {
