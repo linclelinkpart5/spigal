@@ -49,6 +49,10 @@ fn lookup(
     }
 }
 
+fn tail_index(head: usize, len: usize) -> Option<usize> {
+    lookup(head, len, 1, false, true)
+}
+
 pub struct RingBuffer<'b, E> {
     buffer: &'b mut [E],
     head: usize,
@@ -181,17 +185,32 @@ impl<'b, E> RingBuffer<'b, E> {
         &mut self.buffer[wrapped_index]
     }
 
-    /// Returns a reference to the element at the head of the ring buffer.
+    /// Returns a reference to the element at the front of the ring buffer.
     /// Panics if the buffer has a length of 0.
     #[inline]
-    pub fn peek(&self) -> &E {
+    pub fn front(&self) -> &E {
         self.buffer.get(self.head).expect(EMPTY_BUFFER_ERR)
     }
 
-    /// Similar to [`Self::peek`], but returns a mutable reference instead.
+    /// Similar to [`Self::front`], but returns a mutable reference instead.
     #[inline]
-    pub fn peek_mut(&mut self) -> &mut E {
+    pub fn front_mut(&mut self) -> &mut E {
         self.buffer.get_mut(self.head).expect(EMPTY_BUFFER_ERR)
+    }
+
+    /// Returns a reference to the element at the back of the ring buffer.
+    /// Panics if the buffer has a length of 0.
+    #[inline]
+    pub fn back(&self) -> &E {
+        let ti = tail_index(self.head, self.buffer.len()).expect(EMPTY_BUFFER_ERR);
+        &self.buffer[ti]
+    }
+
+    /// Similar to [`Self::back`], but returns a mutable reference instead.
+    #[inline]
+    pub fn back_mut(&mut self) -> &mut E {
+        let ti = tail_index(self.head, self.buffer.len()).expect(EMPTY_BUFFER_ERR);
+        &mut self.buffer[ti]
     }
 
     /// Constructs a new ring buffer from a given inner buffer and
@@ -644,6 +663,51 @@ mod tests {
             assert_eq!(produced_returns, expected_returns);
 
             let expected_state = reference_state;
+            let produced_state = ring_buf.iter().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_state, expected_state);
+        }
+
+        #[test]
+        fn test_front__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::Non), offset in any::<usize>()) {
+            let mut expected_returns = raw_buf.clone();
+            expected_returns.rotate_left(offset.checked_rem(raw_buf.len()).unwrap_or(0));
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            let produced_returns = (0..ring_buf.len()).map(|_| {
+                let r = *ring_buf.front();
+                ring_buf.rotate_left(1);
+                r
+            }).collect::<Vec<_>>();
+
+            assert_eq!(produced_returns, expected_returns);
+        }
+
+        #[test]
+        fn test_front_mut__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::Non), offset in any::<usize>()) {
+            fn mutator(i: &mut i32) -> i32 {
+                let r = *i;
+                *i = !*i;
+                r
+            }
+
+            let mut expected_returns = raw_buf.clone();
+            expected_returns.rotate_left(offset.checked_rem(raw_buf.len()).unwrap_or(0));
+
+            let mut expected_state = expected_returns.clone();
+            expected_state.iter_mut().for_each(|e| { mutator(e); });
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            let produced_returns = (0..ring_buf.len()).map(|_| {
+                let r = mutator(ring_buf.front_mut());
+                ring_buf.rotate_left(1);
+                r
+            }).collect::<Vec<_>>();
+
+            assert_eq!(produced_returns, expected_returns);
+
             let produced_state = ring_buf.iter().copied().collect::<Vec<_>>();
 
             assert_eq!(produced_state, expected_state);
