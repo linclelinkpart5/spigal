@@ -8,6 +8,47 @@ mod iter;
 
 const EMPTY_BUFFER_ERR: &str = "buffer should have a len greater than 0";
 
+fn lookup(
+    head: usize,
+    len: usize,
+    offset: usize,
+    forward: bool,
+    allow_wrap: bool,
+) -> Option<usize> {
+    debug_assert!((len > 0 && head < len) || (len == 0 && head == 0));
+
+    if len == 0 {
+        // An empty buffer can never have a valid index.
+        None
+    } else if !allow_wrap && offset >= len {
+        // If wrapping is disabled, the offset must be in bounds in order to
+        // produce a valid index.
+        None
+    } else {
+        // NOTE: This is a little convoluted, but avoids any overflow (i.e.
+        //       if `a + b` could overflow in `(a + b) % n`).
+        let norm_offset = offset % len;
+
+        if norm_offset == 0 {
+            // No-op, no work needed.
+            Some(head)
+        } else {
+            let b = if forward {
+                norm_offset
+            } else {
+                len - norm_offset
+            };
+
+            let z = len - head;
+
+            let d = if b >= z { b - z } else { head + b };
+            debug_assert!(d < len);
+
+            Some(d)
+        }
+    }
+}
+
 pub struct RingBuffer<'b, E> {
     buffer: &'b mut [E],
     head: usize,
@@ -83,44 +124,18 @@ impl<'b, E> RingBuffer<'b, E> {
         (old_elem, was_reset)
     }
 
-    /// Helper method to wrap (or not) indices.
-    #[inline]
-    fn lookup(&self, index: usize, allow_wrap: bool, forwards: bool) -> Option<usize> {
-        let len = self.len();
-        if len == 0 || (!allow_wrap && index >= len) {
-            None
-        } else {
-            // NOTE: This is a little convoluted, but avoids any overflow (i.e.
-            //       if `a + b` could overflow in `(a + b) % n`).
-            let a = self.head;
-            debug_assert!(a < len);
-            let b = index % len;
-
-            let z = len - a;
-
-            let d = if b >= z { b - z } else { a + b };
-            debug_assert!(d < len);
-
-            if forwards {
-                Some(d)
-            } else {
-                Some(len - d)
-            }
-        }
-    }
-
     /// Returns a reference to the element at the given index, or [`None`] if
     /// out of bounds.
     #[inline]
     pub fn get(&self, index: usize) -> Option<&E> {
-        let wrapped_index = self.lookup(index, false, true)?;
+        let wrapped_index = lookup(self.head, self.len(), index, true, false)?;
         self.buffer.get(wrapped_index)
     }
 
     /// Similar to [`Self::get`], but returns a mutable reference instead.
     #[inline]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut E> {
-        let wrapped_index = self.lookup(index, false, true)?;
+        let wrapped_index = lookup(self.head, self.len(), index, true, false)?;
         self.buffer.get_mut(wrapped_index)
     }
 
@@ -129,14 +144,16 @@ impl<'b, E> RingBuffer<'b, E> {
     /// of 0.
     #[inline]
     pub fn get_wrapped(&self, index: usize) -> &E {
-        let wrapped_index = self.lookup(index, true, true).expect(EMPTY_BUFFER_ERR);
+        let wrapped_index =
+            lookup(self.head, self.len(), index, true, true).expect(EMPTY_BUFFER_ERR);
         &self.buffer[wrapped_index]
     }
 
     /// Similar to [`Self::get_wrapped`], but returns a mutable reference instead.
     #[inline]
     pub fn get_wrapped_mut(&mut self, index: usize) -> &mut E {
-        let wrapped_index = self.lookup(index, true, true).expect(EMPTY_BUFFER_ERR);
+        let wrapped_index =
+            lookup(self.head, self.len(), index, true, true).expect(EMPTY_BUFFER_ERR);
         &mut self.buffer[wrapped_index]
     }
 
@@ -270,7 +287,48 @@ mod tests {
         prop::collection::vec(any::<T>(), lower_bound..(size as usize))
     }
 
+    fn arb_head_len_offset() -> impl Strategy<Value = (usize, usize, usize)> {
+        (1usize..=10000).prop_flat_map(move |len| ((0..len), Just(len), 0..(len * 2)))
+    }
+
     proptest! {
+        #[test]
+        fn test_lookup__non_empty_exhaustive((head, len, offset) in arb_head_len_offset(), forward in any::<bool>(), allow_wrap in any::<bool>()) {
+            let produced = lookup(head, len, offset, forward, allow_wrap);
+
+            let norm_offset = offset % len;
+
+            let expected = if !allow_wrap && offset >= len {
+                // If wrapping is disabled, the non-normalized offset must be
+                // in the interval [0, len).
+                None
+            }
+            else {
+                let x =
+                    if forward {
+                        (head + norm_offset) % len
+                    } else {
+                        if head >= norm_offset {
+                            head - norm_offset
+                        } else {
+                            len - (norm_offset - head)
+                        }
+                    };
+
+                Some(x)
+            };
+
+            assert_eq!(produced, expected);
+        }
+
+        #[test]
+        fn test_lookup__empty_exhaustive(offset in any::<usize>(), forward in any::<bool>(), allow_wrap in any::<bool>()) {
+            let produced = lookup(0, 0, offset, forward, allow_wrap);
+            let expected = None;
+
+            assert_eq!(produced, expected);
+        }
+
         #[test]
         fn test_fill__basic(elem in any::<i32>(), mut raw_buf in arb_values(Size::M, Empty::OK)) {
             let expected_contents = vec![elem; raw_buf.len()];
