@@ -236,6 +236,18 @@ impl<'b, E> RingBuffer<'b, E> {
         (buffer, head)
     }
 
+    /// Consumes the ring buffer and returns the inner buffer, arranged such
+    /// that it contains all of the elements in the ring buffer in order (as
+    /// would have been given by [`Self::iter`]).
+    pub fn into_normalized(self) -> &'b mut [E] {
+        let (buffer, head) = self.into_raw_parts();
+
+        // NOTE: This is the actual slice `rotate_left` method.
+        buffer.rotate_left(head);
+
+        buffer
+    }
+
     /// Returns the contents of the inner buffer as two slices: the first one
     /// is the head of the ring buffer, and the second is the tail.
     ///
@@ -764,6 +776,16 @@ mod tests {
             assert_eq!(produced_returns, expected_returns);
 
             let produced_state = ring_buf.iter().rev().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_state, expected_state);
+        }
+
+        #[test]
+        fn test_into_normalized__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::Non), offset in any::<usize>()) {
+            let ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            let expected_state = ring_buf.iter().copied().collect::<Vec<_>>();
+            let produced_state = ring_buf.into_normalized();
 
             assert_eq!(produced_state, expected_state);
         }
