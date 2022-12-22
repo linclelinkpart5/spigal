@@ -236,12 +236,19 @@ impl<'b, E> RingBuffer<'b, E> {
         (buffer, head)
     }
 
-    fn as_slices(&self) -> (&[E], &[E]) {
+    /// Returns the contents of the inner buffer as two slices: the first one
+    /// is the head of the ring buffer, and the second is the tail.
+    ///
+    /// Iterating over all of the elements in the head slice, followed by all
+    /// of the elements in the tail slice, will yield the elements in the ring
+    /// buffer in order (as given by [`Self::iter`]).
+    pub fn as_slices(&self) -> (&[E], &[E]) {
         let (tail, head) = self.buffer.split_at(self.head);
         (head, tail)
     }
 
-    fn as_slices_mut(&mut self) -> (&mut [E], &mut [E]) {
+    /// Similar to [`Self::as_slices`], but returns mutable slices instead.
+    pub fn as_slices_mut(&mut self) -> (&mut [E], &mut [E]) {
         let (tail, head) = self.buffer.split_at_mut(self.head);
         (head, tail)
     }
