@@ -15,7 +15,7 @@ impl<'a, I> Iterator for Iter<'a, I> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
+        let len = self.head.len() + self.tail.len();
         (len, Some(len))
     }
 
@@ -28,12 +28,6 @@ impl<'a, I> Iterator for Iter<'a, I> {
                 Err(t_amt) => Err(h_amt + t_amt),
             },
         }
-    }
-}
-
-impl<'a, I> ExactSizeIterator for Iter<'a, I> {
-    fn len(&self) -> usize {
-        self.head.len() + self.tail.len()
     }
 }
 
@@ -54,6 +48,7 @@ impl<'a, I> DoubleEndedIterator for Iter<'a, I> {
     }
 }
 
+impl<'a, I> ExactSizeIterator for Iter<'a, I> {}
 impl<'a, I> FusedIterator for Iter<'a, I> {}
 
 pub struct IterMut<'a, I> {
@@ -69,7 +64,7 @@ impl<'a, I> Iterator for IterMut<'a, I> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
+        let len = self.head.len() + self.tail.len();
         (len, Some(len))
     }
 
@@ -82,12 +77,6 @@ impl<'a, I> Iterator for IterMut<'a, I> {
                 Err(t_amt) => Err(h_amt + t_amt),
             },
         }
-    }
-}
-
-impl<'a, I> ExactSizeIterator for IterMut<'a, I> {
-    fn len(&self) -> usize {
-        self.head.len() + self.tail.len()
     }
 }
 
@@ -108,6 +97,7 @@ impl<'a, I> DoubleEndedIterator for IterMut<'a, I> {
     }
 }
 
+impl<'a, I> ExactSizeIterator for IterMut<'a, I> {}
 impl<'a, I> FusedIterator for IterMut<'a, I> {}
 
 #[cfg(test)]
