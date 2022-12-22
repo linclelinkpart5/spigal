@@ -109,3 +109,51 @@ impl<'a, I> DoubleEndedIterator for IterMut<'a, I> {
 }
 
 impl<'a, I> FusedIterator for IterMut<'a, I> {}
+
+#[cfg(test)]
+mod tests {
+    #![allow(non_snake_case)]
+
+    use super::*;
+
+    use proptest::prelude::*;
+
+    const MAX_SIDE_LEN: usize = 100;
+
+    fn arb_head_tail() -> impl Strategy<Value = (Vec<i32>, Vec<i32>)> {
+        (
+            proptest::collection::vec(any::<i32>(), 0..=MAX_SIDE_LEN),
+            proptest::collection::vec(any::<i32>(), 0..=MAX_SIDE_LEN),
+        )
+    }
+
+    proptest! {
+        #[test]
+        fn test_iter__forward_order((head, tail) in arb_head_tail()) {
+            let expected_iteration = head.iter().copied().chain(tail.iter().copied()).collect::<Vec<_>>();
+
+            let iter = Iter {
+                head: head.iter(),
+                tail: tail.iter(),
+            };
+
+            let produced_iteration = iter.copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_iteration, expected_iteration);
+        }
+
+        #[test]
+        fn test_iter__reverse_order((head, tail) in arb_head_tail()) {
+            let expected_iteration = tail.iter().rev().copied().chain(head.iter().rev().copied()).collect::<Vec<_>>();
+
+            let iter = Iter {
+                head: head.iter(),
+                tail: tail.iter(),
+            };
+
+            let produced_iteration = iter.rev().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_iteration, expected_iteration);
+        }
+    }
+}
