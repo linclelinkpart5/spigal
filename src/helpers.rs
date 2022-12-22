@@ -1,33 +1,38 @@
 #[inline]
-pub(super) fn lookup(
+pub(super) fn mod_cycle_offset(
     head: usize,
     len: usize,
     offset: usize,
     forward: bool,
-    allow_wrap: bool,
+    allow_rewrap: bool,
 ) -> Option<usize> {
     debug_assert!((len > 0 && head < len) || (len == 0 && head == 0));
 
+    // An empty buffer can never have a valid index.
     if len == 0 {
-        // An empty buffer can never have a valid index.
         None
-    } else if !allow_wrap && offset >= len {
-        // If wrapping is disabled, the offset must be in bounds in order to
-        // produce a valid index.
+    }
+    // If re-wrapping is disabled, the offset must be in bounds in order to
+    // produce a valid index.
+    else if !allow_rewrap && offset >= len {
         None
-    } else {
+    }
+    // Re-wrap the offset as many times as needed around the head origin.
+    else {
         // NOTE: This is a little convoluted, but avoids any overflow (i.e.
         //       if `a + b` could overflow in `(a + b) % n`).
-        let norm_offset = offset % len;
+        let mod_offset = offset % len;
 
-        if norm_offset == 0 {
+        if mod_offset == 0 {
             // No-op, no work needed.
             Some(head)
         } else {
             let b = if forward {
-                norm_offset
+                mod_offset
             } else {
-                len - norm_offset
+                // Offsetting `n` spaces backward is equivalent to offsetting
+                // `len - n` spaces forward.
+                len - mod_offset
             };
 
             let z = len - head;
@@ -54,37 +59,32 @@ mod tests {
 
     proptest! {
     #[test]
-    fn test_lookup__non_empty_exhaustive((head, len, offset) in arb_head_len_offset(), forward in any::<bool>(), allow_wrap in any::<bool>()) {
-        let produced = lookup(head, len, offset, forward, allow_wrap);
+    fn test_mod_cycle_offset__non_empty_exhaustive((head, len, offset) in arb_head_len_offset(), forward in any::<bool>(), allow_rewrap in any::<bool>()) {
+        let produced = mod_cycle_offset(head, len, offset, forward, allow_rewrap);
 
-        let norm_offset = offset % len;
-
-        let expected = if !allow_wrap && offset >= len {
+        let expected = if !allow_rewrap && offset >= len {
             // If wrapping is disabled, the non-normalized offset must be
             // in the interval [0, len).
             None
         }
         else {
-            let x =
-                if forward {
-                    (head + norm_offset) % len
-                } else {
-                    if head >= norm_offset {
-                        head - norm_offset
-                    } else {
-                        len - (norm_offset - head)
-                    }
-                };
+            let mod_offset = offset % len;
 
-            Some(x)
+            let fwd_offset = if forward {
+                mod_offset
+            } else {
+                len - mod_offset
+            };
+
+            Some((head + fwd_offset) % len)
         };
 
         assert_eq!(produced, expected);
     }
 
     #[test]
-    fn test_lookup__empty_exhaustive(offset in any::<usize>(), forward in any::<bool>(), allow_wrap in any::<bool>()) {
-        let produced = lookup(0, 0, offset, forward, allow_wrap);
+    fn test_mod_cycle_offset__empty_exhaustive(offset in any::<usize>(), forward in any::<bool>(), allow_rewrap in any::<bool>()) {
+        let produced = mod_cycle_offset(0, 0, offset, forward, allow_rewrap);
         let expected = None;
 
         assert_eq!(produced, expected);

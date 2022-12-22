@@ -17,7 +17,7 @@ pub struct RingBuffer<'b, E> {
 impl<'b, E> RingBuffer<'b, E> {
     #[inline]
     fn lookup(&self, offset: usize, forward: bool, allow_wrap: bool) -> Option<usize> {
-        helpers::lookup(self.head, self.buffer.len(), offset, forward, allow_wrap)
+        helpers::mod_cycle_offset(self.head, self.buffer.len(), offset, forward, allow_wrap)
     }
 
     #[inline]
