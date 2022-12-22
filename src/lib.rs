@@ -648,7 +648,7 @@ mod tests {
         }
 
         #[test]
-        fn test_get_wrapped__empty(index in any::<usize>()) {
+        fn test_get_wrapped__panics_on_empty(index in any::<usize>()) {
             let mut raw_buf = vec![0i32; 0];
 
             let ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
@@ -789,5 +789,23 @@ mod tests {
 
             assert_eq!(produced_state, expected_state);
         }
+    }
+
+    #[test]
+    fn test_front__panics_on_empty() {
+        let mut raw_buf = vec![0i32; 0];
+
+        let ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
+
+        assert_panics!(ring_buf.front(), includes(EMPTY_BUFFER_ERR));
+    }
+
+    #[test]
+    fn test_back__panics_on_empty() {
+        let mut raw_buf = vec![0i32; 0];
+
+        let ring_buf = RingBuffer::from(raw_buf.as_mut_slice());
+
+        assert_panics!(ring_buf.back(), includes(EMPTY_BUFFER_ERR));
     }
 }
