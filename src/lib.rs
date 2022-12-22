@@ -720,5 +720,52 @@ mod tests {
 
             assert_eq!(produced_state, expected_state);
         }
+
+        #[test]
+        fn test_back__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::Non), offset in any::<usize>()) {
+            let mut expected_returns = raw_buf.clone();
+            expected_returns.rotate_left(offset.checked_rem(raw_buf.len()).unwrap_or(0));
+            expected_returns.reverse();
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            let produced_returns = (0..ring_buf.len()).map(|_| {
+                let r = *ring_buf.back();
+                ring_buf.rotate_right(1);
+                r
+            }).collect::<Vec<_>>();
+
+            assert_eq!(produced_returns, expected_returns);
+        }
+
+        #[test]
+        fn test_back_mut__basic(mut raw_buf in arb_values::<i32>(Size::M, Empty::Non), offset in any::<usize>()) {
+            fn mutator(i: &mut i32) -> i32 {
+                let r = *i;
+                *i = !*i;
+                r
+            }
+
+            let mut expected_returns = raw_buf.clone();
+            expected_returns.rotate_left(offset.checked_rem(raw_buf.len()).unwrap_or(0));
+            expected_returns.reverse();
+
+            let mut expected_state = expected_returns.clone();
+            expected_state.iter_mut().rev().for_each(|e| { mutator(e); });
+
+            let mut ring_buf = RingBuffer::from_offset(raw_buf.as_mut_slice(), offset);
+
+            let produced_returns = (0..ring_buf.len()).map(|_| {
+                let r = mutator(ring_buf.back_mut());
+                ring_buf.rotate_right(1);
+                r
+            }).collect::<Vec<_>>();
+
+            assert_eq!(produced_returns, expected_returns);
+
+            let produced_state = ring_buf.iter().rev().copied().collect::<Vec<_>>();
+
+            assert_eq!(produced_state, expected_state);
+        }
     }
 }
