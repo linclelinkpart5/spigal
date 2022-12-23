@@ -145,5 +145,30 @@ mod tests {
 
             assert_eq!(produced_iteration, expected_iteration);
         }
+
+        #[test]
+        fn test_iter__length_decreases((head, tail) in arb_head_tail(), mut end_flags in any::<u32>()) {
+            let expected_returns = (0..=(head.len() + tail.len())).rev().collect::<Vec<_>>();
+
+            let mut iter = Iter {
+                head: head.iter(),
+                tail: tail.iter(),
+            };
+
+            let mut produced_returns = Vec::with_capacity(head.len() + tail.len() + 1);
+
+            // Save initial length.
+            produced_returns.push(iter.len());
+
+            while let Some(_) = if end_flags & 0b1 == 0 { iter.next() } else { iter.next_back() } {
+                // Save length after each iteration.
+                produced_returns.push(iter.len());
+
+                // Cycle end flags.
+                end_flags = end_flags.rotate_right(1);
+            }
+
+            assert_eq!(produced_returns, expected_returns);
+        }
     }
 }
