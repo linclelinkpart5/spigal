@@ -1,4 +1,5 @@
 #![cfg_attr(not(test), no_std)]
+#![cfg_attr(feature = "advance_by", feature(iter_advance_by))]
 
 use core::ops::{Index, IndexMut};
 

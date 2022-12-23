@@ -19,7 +19,7 @@ impl<'a, I> Iterator for Iter<'a, I> {
         (len, Some(len))
     }
 
-    #[cfg(feature = "iter_advance_by")]
+    #[cfg(feature = "advance_by")]
     fn advance_by(&mut self, n: usize) -> Result<(), usize> {
         match self.head.advance_by(n) {
             Ok(()) => Ok(()),
@@ -36,7 +36,7 @@ impl<'a, I> DoubleEndedIterator for Iter<'a, I> {
         self.tail.next_back().or_else(|| self.head.next_back())
     }
 
-    #[cfg(feature = "iter_advance_by")]
+    #[cfg(feature = "advance_by")]
     fn advance_back_by(&mut self, n: usize) -> Result<(), usize> {
         match self.tail.advance_back_by(n) {
             Ok(()) => Ok(()),
@@ -68,7 +68,7 @@ impl<'a, I> Iterator for IterMut<'a, I> {
         (len, Some(len))
     }
 
-    #[cfg(feature = "iter_advance_by")]
+    #[cfg(feature = "advance_by")]
     fn advance_by(&mut self, n: usize) -> Result<(), usize> {
         match self.head.advance_by(n) {
             Ok(()) => Ok(()),
@@ -85,7 +85,7 @@ impl<'a, I> DoubleEndedIterator for IterMut<'a, I> {
         self.tail.next_back().or_else(|| self.head.next_back())
     }
 
-    #[cfg(feature = "iter_advance_by")]
+    #[cfg(feature = "advance_by")]
     fn advance_back_by(&mut self, n: usize) -> Result<(), usize> {
         match self.tail.advance_back_by(n) {
             Ok(()) => Ok(()),
@@ -169,6 +169,33 @@ mod tests {
             }
 
             assert_eq!(produced_returns, expected_returns);
+        }
+
+        #[test]
+        #[cfg(feature = "advance_by")]
+        fn test_iter__advancing_is_finite((head, tail) in arb_head_tail(), pos_step in 1usize..=16) {
+            let len = head.len() + tail.len();
+
+            let mut expected_returns = vec![Ok(()); len / pos_step];
+            expected_returns.push(Err(len % pos_step));
+
+            let mut iter = Iter {
+                head: head.iter(),
+                tail: tail.iter(),
+            };
+
+            let mut produced_returns = Vec::new();
+
+            let mut at_end = false;
+            while !at_end {
+                let produced_return = iter.advance_by(pos_step);
+
+                if produced_return.is_err() {
+                    at_end = true;
+                }
+
+                produced_returns.push(produced_return);
+            }
         }
     }
 }

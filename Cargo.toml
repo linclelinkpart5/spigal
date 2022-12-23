@@ -15,3 +15,6 @@ version = "0.2.0"
 [dev-dependencies]
 cool_asserts = "2"
 proptest = "1"
+
+[features]
+advance_by = []
