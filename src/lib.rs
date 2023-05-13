@@ -27,6 +27,25 @@ impl<'b, E> RingBuffer<'b, E> {
     }
 
     /// Sets all values of this buffer using a given closure.
+    ///
+    /// ```
+    /// use spigal::RingBuffer;
+    ///
+    /// fn main() {
+    ///     let mut buf = vec![0u8; 8];
+    ///     let mut ring_buf = RingBuffer::from(&mut buf[..]);
+    ///
+    ///     let mut i = 0u8;
+    ///     let mut func = || {
+    ///         i += 1;
+    ///         9 - i
+    ///     };
+    ///
+    ///     ring_buf.fill_with(func);
+    ///
+    ///     assert!(ring_buf.iter().eq(&[8, 7, 6, 5, 4, 3, 2, 1]));
+    /// }
+    /// ```
     pub fn fill_with<F>(&mut self, func: F)
     where
         F: FnMut() -> E,
@@ -40,6 +59,21 @@ impl<'b, E> RingBuffer<'b, E> {
     /// buffer once, `Err(c)` otherwise, where `c` is the number of elements
     /// that were read and pushed into the buffer. Note that `c` will always be
     /// less than the length of the buffer.
+    ///
+    /// ```
+    /// use spigal::RingBuffer;
+    ///
+    /// fn main() {
+    ///     let mut buf = vec![0u8; 6];
+    ///     let mut ring_buf = RingBuffer::from(&mut buf[..]);
+    ///
+    ///     matches!(ring_buf.fill_iter([1, 2, 3, 4, 5, 6]), Ok(()));
+    ///     assert!(ring_buf.iter().eq(&[1, 2, 3, 4, 5, 6]));
+    ///
+    ///     matches!(ring_buf.fill_iter([7, 8]), Err(2));
+    ///     assert!(ring_buf.iter().eq(&[3, 4, 5, 6, 7, 8]));
+    /// }
+    /// ```
     pub fn fill_iter<I>(&mut self, iter: I) -> Result<(), usize>
     where
         I: IntoIterator<Item = E>,
@@ -58,6 +92,17 @@ impl<'b, E> RingBuffer<'b, E> {
     }
 
     /// Returns the length of this buffer.
+    ///
+    /// ```
+    /// use spigal::RingBuffer;
+    ///
+    /// fn main() {
+    ///     let mut buf = vec![0u8; 27];
+    ///     let mut ring_buf = RingBuffer::from(&mut buf[..]);
+    ///
+    ///     assert_eq!(ring_buf.len(), 27);
+    /// }
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.buffer.len()
@@ -73,6 +118,18 @@ impl<'b, E> RingBuffer<'b, E> {
     /// Rotates the ring buffer `n` elements to the left. This has the same
     /// effect as popping the front element and pushing it onto the back of the
     /// ring buffer, repeated `n` times.
+    ///
+    /// ```
+    /// use spigal::RingBuffer;
+    ///
+    /// fn main() {
+    ///     let mut buf = Vec::from_iter(0u8..=9);
+    ///     let mut ring_buf = RingBuffer::from(&mut buf[..]);
+    ///
+    ///     ring_buf.rotate_left(27);
+    ///     assert!(ring_buf.iter().eq(&[7, 8, 9, 0, 1, 2, 3, 4, 5, 6]));
+    /// }
+    /// ```
     pub fn rotate_left(&mut self, n: usize) {
         self.rotate(n, true)
     }
@@ -80,6 +137,18 @@ impl<'b, E> RingBuffer<'b, E> {
     /// Rotates the ring buffer `n` elements to the right. This has the same
     /// effect as popping the back element and pushing it onto the front of the
     /// ring buffer, repeated `n` times.
+    ///
+    /// ```
+    /// use spigal::RingBuffer;
+    ///
+    /// fn main() {
+    ///     let mut buf = Vec::from_iter(0u8..=9);
+    ///     let mut ring_buf = RingBuffer::from(&mut buf[..]);
+    ///
+    ///     ring_buf.rotate_right(27);
+    ///     assert!(ring_buf.iter().eq(&[3, 4, 5, 6, 7, 8, 9, 0, 1, 2]));
+    /// }
+    /// ```
     pub fn rotate_right(&mut self, n: usize) {
         self.rotate(n, false)
     }
